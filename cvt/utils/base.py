@@ -1,12 +1,18 @@
 """
-Mathematical utilities
-"""
+Utility functions.
 
-# Authors: Junki Ishikawa
-#          Takahiro Inagaki
+Authors:
+    Junki Ishikawa, Takahiro Inagaki, Shuhei Yokoo 
+"""
 
 import numpy as np
 from scipy.linalg import eigh
+from scipy.linalg import svd
+
+try:
+    import torch
+except ImportError:
+    pass
 
 
 def mean_square_singular_values(X):
@@ -274,3 +280,66 @@ def cross_similarities(refs, inputs):
     similarities = np.array(similarities)
 
     return similarities
+
+
+def randomized_time_warping(
+    inputs,
+    n_sampling: int,
+    n_concat: int=2,
+    n_components: int=None,
+    backend='numpy',
+):
+    """
+    RTW(Randomized Time Warping) implementation.
+    
+    Please see this paper for more details.
+    Suryanto, C. H., Xue, J. H., & Fukui, K. (2016).
+    Randomized time warping for motion recognition.
+    Image and Vision Computing, 54, 1-11.
+
+    Parameters:
+    -----------
+    inputs: list of array-like, shape (n_frames, n_dimensions)
+    n_sampling: int
+    n_concat: int
+    n_components: 
+
+    Returns:
+    --------
+    v: array-like, shape (n_dimensions*n_concat, n_components)
+        right singular matrix of RTW array
+    s: array-like, shape (n_components)
+        sigular values of RTW array
+    
+    Example:
+    --------
+    x = np.random.rand(100, 100)
+    v, s = randomized_time_warping(x, n_sampling=10, n_components=5)
+    """
+    
+    assert n_components <= n_sampling
+    assert len(inputs.shape) == 2
+    
+    n_frames = len(inputs)
+    
+    if backend == 'numpy':
+        random_idx = np.random.randint(low=0, high=n_frames, size=(n_sampling, n_concat))
+        sorted_random_idx = np.sort(random_idx, axis=1)
+        inputs_sorted = inputs[sorted_random_idx].reshape(n_sampling, -1)
+        u, s, v = svd(inputs_sorted, lapack_driver='gesdd')
+    elif backend == 'torch':
+        random_idx = torch.randint(low=0, high=n_frames, size=(n_sampling, n_concat))
+        sorted_random_idx, _ = torch.sort(random_idx, dim=1)
+        inputs_sorted = inputs[sorted_random_idx].view(n_sampling, -1)
+        u, s, v = torch.svd(inputs_sorted)
+    else:
+        raise NotImplementedError
+
+    if n_components is None:
+        topk_components = v
+        topk_sv = s
+    else:
+        topk_components = v[:, :n_components]
+        topk_sv = s[:n_components]
+    
+    return topk_components, topk_sv
