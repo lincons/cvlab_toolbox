@@ -302,7 +302,8 @@ def randomized_time_warping(
     inputs: list of array-like, shape (n_frames, n_dimensions)
     n_sampling: int
     n_concat: int
-    n_components: 
+    n_components: int
+    backend: str, backend lib
 
     Returns:
     --------
